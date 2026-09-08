@@ -1482,6 +1482,9 @@ def _configure_source() -> None:
 
 
 def compute_theoretical_power_spectra():
+    global SOURCE_Z, ELL_MIN, ELL_MAX, N_GLOBAL_BINS
+    global C_KM_S, OMEGA_M, DELTA_C, RHO_CRIT_0
+
     # ============================================================
     # THEORETICAL POWER-SPECTRUM PRODUCT
     # ============================================================
