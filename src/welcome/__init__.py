@@ -11,7 +11,7 @@ from .core import (
     run_welcome,
 )
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 __all__ = [
     "DEFAULT_DIAGNOSTIC_WAVELET_BANDS",
