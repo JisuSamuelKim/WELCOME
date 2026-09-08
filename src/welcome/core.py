@@ -62,7 +62,11 @@ class WelcomeConfig:
     overwrite: bool = False
 
 
+ACTIVE_CONFIG = None
+
+
 def _apply_config(config: WelcomeConfig) -> None:
+    global ACTIVE_CONFIG
     global H, H0_NORMALIZATION, OMEGA_B, OMEGA_CDM, SUM_MNU_EV, N_S
     global A_S_TIMES_1E9, SIGMA8_TARGET, W_DE, WA_DE, HALOFIT_VERSION
     global NZ_FILE, SOURCE_PLANE_REDSHIFT, SINGLE_PLANE_CAMB_SIGMA_Z
@@ -82,6 +86,7 @@ def _apply_config(config: WelcomeConfig) -> None:
     global CONTOUR_MAX, CONTOUR_STEP, POLYNOMIAL_DEGREE, THEORY_KAPPA_MIN_SIGMA
     global THEORY_KAPPA_MAX_SIGMA, THEORY_KAPPA_POINTS, SOLVER_RESIDUAL_TOL
 
+    ACTIVE_CONFIG = config
     H=float(config.h); H0_NORMALIZATION=100.0; OMEGA_B=float(config.omega_b); OMEGA_CDM=float(config.omega_cdm)
     SUM_MNU_EV=float(config.sum_mnu_ev); N_S=float(config.n_s); A_S_TIMES_1E9=float(config.a_s_times_1e9)
     SIGMA8_TARGET=float(config.sigma8); W_DE=float(config.w0); WA_DE=float(config.wa); HALOFIT_VERSION=str(config.halofit_version)
@@ -3054,7 +3059,13 @@ def compute_theoretical_wavelet_l1():
     return products
 
 
-def generate_emulated_maps():
+def generate_emulated_maps(config: WelcomeConfig | None = None):
+    """Generate emulated maps, with process-safe configuration for parallel workers."""
+    worker_config = config if config is not None else ACTIVE_CONFIG
+    if worker_config is None:
+        raise RuntimeError("No active WELCOME configuration. Pass WelcomeConfig to generate_emulated_maps().")
+    _apply_config(worker_config)
+    _configure_source()
     BANDS = validate_emulation_scales(EMULATION_L1_BANDS, EMULATION_COARSE_ARCMIN)
     TARGET_L1 = build_aggregate_emulator_targets(THEORY_ALL_SCALE_NPZ, BANDS, EMULATION_COARSE_ARCMIN)
     REALISATION_INDICES = np.arange(REALISATION_START, REALISATION_END + 1, dtype=np.int64)
@@ -3084,6 +3095,10 @@ def generate_emulated_maps():
     print('output                :', EMULATION_OUTPUT_DIR)
     print('=' * 96)
     def run_one_emulation(realisation_index):
+        # Windows/loky workers start in fresh Python processes, so initialise
+        # module state explicitly from the serialisable configuration object.
+        _apply_config(worker_config)
+        _configure_source()
         realisation_index = int(realisation_index)
         map_path = emulation_map_path(realisation_index)
         history_path = emulation_history_path(realisation_index)
@@ -3225,7 +3240,7 @@ def run_welcome(config: WelcomeConfig | None = None):
     _configure_source()
     power_product = compute_theoretical_power_spectra()
     wavelet_product = compute_theoretical_wavelet_l1()
-    emulation_results = generate_emulated_maps()
+    emulation_results = generate_emulated_maps(config)
     return {
         "config": config,
         "power_spectrum_path": TARGET_POWER_NPZ,
